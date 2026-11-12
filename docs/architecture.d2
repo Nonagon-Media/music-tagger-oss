@@ -1,0 +1,49 @@
+# Renders only in the N9N d2 pipeline: it imports lib/style.d2 and the icon sets from filer (/mnt/n9n/assets/icons/d2). The committed architecture.png is the rendered output.
+...@../../lib/style.d2
+...@/mnt/n9n/assets/icons/d2/simple.d2
+...@/mnt/n9n/assets/icons/d2/tabler.d2
+vars: {d2-config: {layout-engine: dagre}}
+direction: down
+title: "Music Tagger — architecture" {class: title}
+
+user: "User" {class: [svc; tabler-user]}
+music: "Music library (MUSIC_DIR)\nlocal dir or NFS" {class: [svc; tabler-folder-open]}
+
+stack: "Docker Compose stack" {
+  class: zone
+  batch: "batch-processor\none artist folder at a time\n(profile: batch)" {class: [small; tabler-stack-2]}
+  seed: "seed.py" {class: [small; tabler-seedling]}
+  qa: "rq queue\nanalysis" {class: [small; simple-redis]}
+  aw: "analysis-worker\nfpcalc fingerprint\n+ match" {class: [small; tabler-fingerprint]}
+  qp: "rq queue\nprocessing" {class: [small; simple-redis]}
+  review: "review-ui\n:8080 (Flask)" {class: [small; tabler-checklist]}
+  dash: "rq-dashboard\n:9181" {class: [small; tabler-layout-dashboard]}
+  pw: "processing-\nworker\nwrite_tags\n(opt-in\nprofile: apply)" {class: [small; tabler-tags]}
+  db: "SQLite\nmusic_tagger.db\n(job state)" {class: [svc; simple-sqlite]}
+
+  batch -> seed: "seed.py --artist" {class: flow}
+  seed -> qa: "enqueue" {class: flow}
+  qa -> aw {class: flow}
+  aw -> qp: "≥ threshold\n(default 80)" {class: flow}
+  qp -> pw {class: flow}
+  aw -> db: "< threshold\n→ review" {class: flow}
+  db <-> review: "review queue,\nreject" {class: flow; target-arrowhead.shape: none}
+  qp <-> review: "approve" {class: flow; target-arrowhead.shape: none}
+  batch -> db: "check progress" {class: async}
+  qp <-> dash: "monitor" {class: async; target-arrowhead.shape: none}
+}
+
+acoustid: "AcoustID API" {class: [svc; tabler-cloud-search]}
+mb: "MusicBrainz API" {class: [svc; simple-musicbrainz]}
+
+note: "Redis is the job broker only; SQLite holds job state for workers and UI.\nTag writing is a separate phase: processing-worker runs only when the apply profile is enabled." {class: note; near: bottom-center}
+
+stack.review <-> user {class: flow; target-arrowhead.shape: none}
+stack.dash <-> user {class: flow; target-arrowhead.shape: none}
+music -> stack.batch {class: flow}
+music -> stack.seed: "scan" {class: flow}
+music -> stack.aw: "read (ro)" {class: flow}
+stack.aw -> acoustid: "fingerprint lookup" {class: flow}
+stack.aw -> mb: "release details" {class: flow}
+music <-> stack.pw: "write tags (rw)" {class: flow; target-arrowhead.shape: none}
+
