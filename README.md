@@ -85,7 +85,7 @@ A self-hosted Docker application for auditing and correcting music library metad
 
    The batch processor:
    - Processes one artist folder at a time
-   - Waits 5 minutes between artists (configurable)
+   - Waits 3 minutes between artists (`DELAY_BETWEEN_ARTISTS` in `scripts/batch_process.sh`)
    - Skips already-processed artists
    - Logs progress to `logs/batch_process.log`
 
